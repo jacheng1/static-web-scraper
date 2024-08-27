@@ -96,7 +96,8 @@ async function sendSlackNotification(currEntries) {
           type: 'mrkdwn',
           text:
             `Rank ${rank}` +
-            `\nTitle: ${title || 'N/A'}, Price: ${price || 'N/A'}` +
+            `\nTitle: ${title || 'N/A'}` +
+            `\nPrice: ${price || 'N/A'}` +
             `\nRank change: ${rankChange}` +
             `\nWeeks: ${weeks}`,
         },
