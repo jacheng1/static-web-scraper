@@ -1,6 +1,7 @@
-// dynamic web scraper that fetches the top 10 bestselling video games from: https://store.steampowered.com/charts/topselling/US
+// dynamic web scraper that fetches the top 10 bestselling video games from target website:
+// https://store.steampowered.com/charts/topselling/US
 
-const slackIncomingWebhookUrl = require('./slack_notification_url');
+const slackIncomingWebhookUrl = require('./slack_notification_url'); // retrieve webhook URL to send scraped data to designated Slack channel
 
 const puppeteer = require('puppeteer'); // integrate Puppeteer to handle dynamically loaded content on target page
 const { z } = require('zod');
@@ -14,7 +15,7 @@ const GameRanking = z.object({
   price: z.string(),
   rankChange: z.string(),
   weeks: z.string(),
-  image: z.string().url().optional(),
+  image: z.string().url(),
 });
 
 async function main() {
@@ -56,7 +57,7 @@ async function main() {
 
     console.log(result); // print scraped data to console
 
-    const validatedResult = result.map(entry => GameRanking.parse(entry)); // vlidate and process scraped data
+    const validatedResult = result.map(entry => GameRanking.parse(entry)); // validate and process scraped data
 
     // save the result to CSV file
     const output = stringify(validatedResult, { header: true, quoted: true });
@@ -66,7 +67,7 @@ async function main() {
 
     fs.writeFileSync(filename, output); // write to CSV file
 
-    await sendSlackNotification(validatedResult); // send Slack notification
+    await sendSlackNotification(validatedResult); // helper function to send validated result as notification to Slack channel
   } 
   catch (error) {
     console.error('An error occurred:', error.message);
@@ -84,33 +85,36 @@ main();
  * Send Slack notification
  *
  * @param {z.infer<typeof GameRanking>[]} currEntries
- */
+*/
 async function sendSlackNotification(currEntries) {
-  const blocks = currEntries.map(entry => {
-    const { rank, title, price, rankChange, weeks, image } = entry;
+  const blocks = [...currEntries.map(entry => {
+      const { rank, title, price, rankChange, weeks, image } = entry;
 
-    return {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text:
-          `Rank ${rank}` +
-          `\nTitle: ${title || 'N/A'}, Price: ${price || 'N/A'}` +
-          `\nRank change: ${rankChange}` +
-          `\nWeeks: ${weeks}`,
-      },
-      accessory: image ? {
-        type: 'image',
-        image_url: image,
-        alt_text: title,
-      } : undefined,
-    };
-  });
+      return {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            `Rank ${rank}` +
+            `\nTitle: ${title || 'N/A'}, Price: ${price || 'N/A'}` +
+            `\nRank change: ${rankChange}` +
+            `\nWeeks: ${weeks}`,
+        },
+        accessory: {
+          type: 'image',
+          image_url: image,
+          alt_text: title,
+        },
+      };
+    }),
+  ];
 
   const slackData = {
     text: `Steam Top 10 data received`,
     blocks: blocks,
   };
+
+  console.log("Sending the following data to Slack:", JSON.stringify(slackData, null, 2)); // log the data being sent to Slack
 
   const response = await fetch(slackIncomingWebhookUrl, {
     method: 'POST',
@@ -120,6 +124,7 @@ async function sendSlackNotification(currEntries) {
     body: JSON.stringify(slackData),
   });
 
-  console.log(response.status);
-  console.log(response.statusText);
+  console.log("Slack response status:", response.status);
+  console.log("Slack response status text:", response.statusText);
+  console.log("Slack response text:", await response.text());
 }
